@@ -1,0 +1,58 @@
+from flask import Flask, request, jsonify
+import requests
+import os
+from dotenv import load_dotenv
+
+app = Flask(__name__)
+load_dotenv() # charge variables d'environnement
+
+# === Fonction de résolution du webhook cible ===
+def get_webhook_url(canalCible: int) -> str:
+    if canalCible == 1:
+        return os.getenv("TEAMS_WEBHOOK_CANAL1")
+    elif canalCible == 2:
+        return os.getenv("TEAMS_WEBHOOK_CANAL2")
+    elif canalCible == 3:
+        return os.getenv("TEAMS_WEBHOOK_CANAL3")
+    else:
+        return os.getenv("TEAMS_WEBHOOK_CANAL4")
+
+# === Route de réception GitLab ===
+@app.route("/gitlab-webhook", methods=["POST"])
+def gitlab_webhook():
+    data = request.json
+
+    if data.get("object_kind") == "merge_request":
+        project_name = data.get("project", {}).get("name", "Projet inconnu")
+        title = data.get("object_attributes", {}).get("title", "Titre inconnu")
+        author = data.get("user", {}).get("username", "Auteur inconnu")
+        url = data.get("object_attributes", {}).get("url", "")
+        reviewers = data.get("reviewers", [])
+
+        reviewer_list = "\n".join([f"- {r.get('name')}" for r in reviewers]) if reviewers else "Aucun reviewer"
+
+        message = {
+            "text": f"\ud83d\udd34 Nouvelle Merge Request sur **{project_name}**"
+                    f"\n : {title}\n"
+                    f"\n**Auteur** : {author}\n"
+                    f"\n**Reviewers** :\n{reviewer_list}\n"
+                    f"\n[\ud83d\udcc8 Voir la MR]({url})"
+        }
+
+        canalCible = 0
+        if author == "Massil":
+            canalCible = 1
+
+        webhook_url = get_webhook_url(canalCible)
+        response = requests.post(webhook_url, json=message) 
+
+        if response.status_code == 200:
+            return jsonify({"message": "Notification envoyée à Teams ✅"}), 200
+        else:
+            return jsonify({"error": f"Erreur lors de l'envoi à Teams: {response.text}"}), 500
+
+    return jsonify({"message": "Evénement ignoré (pas une MR)"}), 200
+
+
+if __name__ == "__main__":
+    app.run(port=3000)
