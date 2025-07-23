@@ -41,7 +41,6 @@ def gitlab_webhook():
         project_name = data.get("project", {}).get("name", "Projet inconnu")
         title = data.get("object_attributes", {}).get("title", "Titre inconnu")
         state = data.get("object_attributes", {}).get("state", "")
-        mr_creator = data.get("object_attributes", {}).get("last_commit", {}).get("author", {}).get("name", "Créateur inconnu") 
         url = data.get("object_attributes", {}).get("url", "")
         action_user = data.get("user", {}).get("username", "Utilisateur inconnu")
         reviewers = data.get("reviewers", [])
@@ -62,8 +61,7 @@ def gitlab_webhook():
         message = {
             "text": f"\ud83d\udd34 Nouvelle Merge Request sur **{project_name}**"
                     f"\n : {title}\n"
-                    f"{action_description}\n\n"
-                    f"\n**Auteur** : {mr_creator }\n"                    
+                    f"{action_description}\n\n"              
                     f"\n**Reviewers** :\n{reviewer_list}\n"
                     f"\n[\ud83d\udcc8 Voir la MR]({url})"
                     f"\n{data}"
