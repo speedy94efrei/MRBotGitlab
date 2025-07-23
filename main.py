@@ -40,16 +40,30 @@ def gitlab_webhook():
     if data.get("object_kind") == "merge_request":
         project_name = data.get("project", {}).get("name", "Projet inconnu")
         title = data.get("object_attributes", {}).get("title", "Titre inconnu")
-        author = data.get("user", {}).get("username", "Auteur inconnu")
+        state = data.get("object_attributes", {}).get("state", "")
+        mr_creator = data.get("object_attributes", {}).get("last_commit", {}).get("author", {}).get("name", "Créateur inconnu") 
         url = data.get("object_attributes", {}).get("url", "")
+        action_user = data.get("user", {}).get("username", "Utilisateur inconnu")
         reviewers = data.get("reviewers", [])
+        
+        
+        reviewer_list = "\n".join([f"- {name}" for name in reviewer_names]) if reviewer_names else "Aucun reviewer"
+        reviewer_names = [r.get('name', '') for r in reviewers]
 
-        reviewer_list = "\n".join([f"- {r.get('name')}" for r in reviewers]) if reviewers else "Aucun reviewer"
+        if state == "merged":
+            action_description = f"✅ La branche a été mergée par **{action_user}**"
+        elif state == "opened":
+            action_description = f"✏️ Merge Request créée par **{action_user}**"
+        elif state == "closed":
+            action_description = f"❌ Merge Request fermée par **{action_user}**"
+        else:
+            action_description = f"🔄 Action sur la MR par **{action_user}**"
 
         message = {
             "text": f"\ud83d\udd34 Nouvelle Merge Request sur **{project_name}**"
                     f"\n : {title}\n"
-                    f"\n**Auteur** : {author}\n"
+                    f"{action_description}\n\n"
+                    f"\n**Auteur** : {mr_creator }\n"                    
                     f"\n**Reviewers** :\n{reviewer_list}\n"
                     f"\n[\ud83d\udcc8 Voir la MR]({url})"
                     f"\n{data}"
