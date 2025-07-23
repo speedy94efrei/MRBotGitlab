@@ -52,7 +52,6 @@ def gitlab_webhook():
                     f"\n**Auteur** : {author}\n"
                     f"\n**Reviewers** :\n{reviewer_list}\n"
                     f"\n[\ud83d\udcc8 Voir la MR]({url})"
-                    f"{data}"
         }
 
         canalCible = "Lions"
