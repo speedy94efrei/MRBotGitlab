@@ -45,9 +45,8 @@ def gitlab_webhook():
         action_user = data.get("user", {}).get("username", "Utilisateur inconnu")
         reviewers = data.get("reviewers", [])
         
-        
-        reviewer_list = "\n".join([f"- {name}" for name in reviewer_names]) if reviewer_names else "Aucun reviewer"
         reviewer_names = [r.get('name', '') for r in reviewers]
+        reviewer_list = "\n".join([f"- {name}" for name in reviewer_names]) if reviewer_names else "Aucun reviewer"
 
         if state == "merged":
             action_description = f"✅ La branche a été mergée par **{action_user}**"
