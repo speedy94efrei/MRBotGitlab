@@ -51,21 +51,27 @@ def gitlab_webhook():
         reviewer_names = [r.get('name', '') for r in reviewers]
         reviewer_list = "\n".join([f"- {name}" for name in reviewer_names]) if reviewer_names else "Aucun reviewer"
 
+                # Déterminer le bon message selon l'action
         if state == "merged":
             merge_actor = reviewers[0].get("name") if reviewers else action_user
             action_description = f"✅ La branche a été mergée par **{merge_actor}**"
+            reviewer_block = ""  # Ne pas afficher les reviewers dans ce cas
         elif state == "opened":
-            action_description = f"✏️ Merge Request créée par **{author_name }**"
+            action_description = f"✏️ Merge Request créée par **{author_name}**"
+            reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
         elif state == "closed":
-            action_description = f"❌ Merge Request fermée par **{merge_actor}**"
+            action_description = f"❌ Merge Request fermée par **{action_user}**"
+            reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
         else:
             action_description = f"🔄 Action sur la MR par **{action_user}**"
+            reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
+
 
         message = {
             "text": f"\ud83d\udd34 Nouvelle Merge Request sur **{project_name}**"
                     f"\n : {title}\n"
-                    f"{action_description}\n\n"              
-                    f"\n**Reviewers** :\n{reviewer_list}\n"
+                    f"\n{action_description}\n\n"              
+                    f"\n{reviewer_block}\n"
                     f"\n[\ud83d\udcc8 Voir la MR]({url})"
                     f"\n{data}"
         }
