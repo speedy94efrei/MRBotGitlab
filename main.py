@@ -44,7 +44,10 @@ def gitlab_webhook():
         url = data.get("object_attributes", {}).get("url", "")
         action_user = data.get("user", {}).get("username", "Utilisateur inconnu")
         reviewers = data.get("reviewers", [])
-        
+        assignees = data.get("assignees", [])
+        author_id = data.get("object_attributes", {}).get("author_id", None)
+
+        author_name = next((a.get("name") for a in assignees if a.get("id") == author_id), "Auteur inconnu")
         reviewer_names = [r.get('name', '') for r in reviewers]
         reviewer_list = "\n".join([f"- {name}" for name in reviewer_names]) if reviewer_names else "Aucun reviewer"
 
@@ -52,9 +55,9 @@ def gitlab_webhook():
             merge_actor = reviewers[0].get("name") if reviewers else action_user
             action_description = f"✅ La branche a été mergée par **{merge_actor}**"
         elif state == "opened":
-            action_description = f"✏️ Merge Request créée par **{action_user}**"
+            action_description = f"✏️ Merge Request créée par **{author_name }**"
         elif state == "closed":
-            action_description = f"❌ Merge Request fermée par **{action_user}**"
+            action_description = f"❌ Merge Request fermée par **{merge_actor}**"
         else:
             action_description = f"🔄 Action sur la MR par **{action_user}**"
 
