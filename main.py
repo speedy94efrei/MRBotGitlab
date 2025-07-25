@@ -47,11 +47,10 @@ def gitlab_webhook():
 
         if note_type == "MergeRequest":
             message = {
-                "text": f"💬 **Nouveau commentaire sur une MR**\n"
-                        f"✏️ Auteur : **{author}**\n"
-                        f"📝 Message :\n> {note_text}\n"
-                        f"📌 MR : **{mr_title}**\n"
-                        f"🔗 [Voir la MR]({mr_url})"
+                "text": f"💬 **Nouveau commentaire sur la MR {mr_title}**\n"
+                        f"\n✏️ Auteur : **{author}**\n"
+                        f"\n📝 Message :\n> {note_text}\n"
+                        f"\n 🔗 [Voir la MR]({mr_url})"
             }
 
             # Pour l'instant, envoie au canal par défaut
