@@ -38,6 +38,31 @@ def get_webhook_url(canalCible: int) -> str:
 def gitlab_webhook():
     data = request.json
 
+    if data.get("object_kind") == "note":
+        note_type = data.get("object_attributes", {}).get("noteable_type")
+        note_text = data.get("object_attributes", {}).get("note")
+        author = data.get("user", {}).get("username", "Utilisateur inconnu")
+        mr_title = data.get("merge_request", {}).get("title", "Titre inconnu")
+        mr_url = data.get("merge_request", {}).get("url", "#")
+
+        if note_type == "MergeRequest":
+            message = {
+                "text": f"💬 **Nouveau commentaire sur une MR**\n"
+                        f"✏️ Auteur : **{author}**\n"
+                        f"📝 Message :\n> {note_text}\n"
+                        f"📌 MR : **{mr_title}**\n"
+                        f"🔗 [Voir la MR]({mr_url})"
+            }
+
+            # Pour l'instant, envoie au canal par défaut
+            webhook_url = get_webhook_url("Lions")  # ou autre logique selon l’auteur
+            response = requests.post(webhook_url, json=message)
+
+            if response.status_code == 200:
+                return jsonify({"message": "Notification commentaire envoyée ✅"}), 200
+            else:
+                return jsonify({"error": f"Erreur Teams commentaire : {response.text}"}), 500
+
     if data.get("object_kind") == "merge_request":
         project_name = data.get("project", {}).get("name", "Projet inconnu")
         title = data.get("object_attributes", {}).get("title", "Titre inconnu")
