@@ -1,27 +1,24 @@
+
 from flask import Flask, request, jsonify
 import requests
-from datetime import datetime, timezone, timedelta,time 
 import os
 from dotenv import load_dotenv
 
 app = Flask(__name__)
 load_dotenv() # charge variables d'environnement
 
-Lions = {"Rayan", "Sullivan", "Steven", "Aymen", "Moustapha"}
-Titans = {"Aymen", "Youssef", "Walid", "Jawad", "Andy"}
-Chevaliers = {"Florian", "Nassim", "Mousstoifa", "Nicolas"}
-sans_papiers = {"Faïz", "Massil", "Kristina", "Sara"}
-
-def detect_team(nom):
-    if nom in Lions:
-        return "Lions"
-    elif nom in Titans:
-        return "Titans"
-    elif nom in Chevaliers:
-        return "Chevaliers"
-    elif nom in sans_papiers:
-        return "Gardiens"
-    return None  # Pas trouvé
+Lions = {
+    "Rayan", "Sullivan", "Steven", "Aymen", "Moustapha"
+}
+Titans = {
+    "Aymen", "Youssef", "Walid", "Jawad", "Andy"
+}
+Chevaliers = {
+    "Florian", "Nassim", "Moustoifa", "Nicolas"
+}
+Gardiens = {
+    "Faïz", "Massil", "Kristina", "Sara"
+}
 
 # === Fonction de résolution du webhook cible ===
 def get_webhook_url(canalCible: int) -> str:
@@ -55,10 +52,6 @@ def gitlab_webhook():
         reviewer_names = [r.get('name', '') for r in reviewers]
         reviewer_list = "\n".join([f"- {name}" for name in reviewer_names]) if reviewer_names else "Aucun reviewer"
 
-         # Détection des équipes
-        team_author = detect_team(author_name)
-        team_reviewer = detect_team(reviewer_names[0]) if reviewer_names else ""
-
                 # Déterminer le bon message selon l'action
         if state == "merged":
             merge_actor = reviewers[0].get("name") if reviewers else action_user
@@ -67,8 +60,6 @@ def gitlab_webhook():
         elif state == "opened":
             action_description = f"✏️ Merge Request créée par **{author_name}**"
             reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
-            
-
         elif state == "closed":
             action_description = f"❌ Merge Request fermée par **{action_user}**"
             reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
@@ -83,22 +74,11 @@ def gitlab_webhook():
                     f"\n{action_description}\n\n"              
                     f"\n{reviewer_block}\n"
                     f"\n[\ud83d\udcc8 Voir la MR]({url})"
-                    f"\n{data}"
         }
 
-        webhook_urls = []
-    if team_author == team_reviewer and team_author:
-        webhook_urls = [get_webhook_url(team_author)]
-    else:
-        if team_author:
-            webhook_urls.append(get_webhook_url(team_author))
-        if team_reviewer:
-            webhook_urls.append(get_webhook_url(team_reviewer))
+        canalCible = "Lions"
 
-    webhook_urls = list(set(filter(None, webhook_urls)))  # remove empty/duplicates
-
-    for webhook_url in webhook_urls:
-        requests.post(webhook_url, json=message)
+        webhook_url = get_webhook_url(canalCible)
         response = requests.post(webhook_url, json=message) 
 
         if response.status_code == 200:
