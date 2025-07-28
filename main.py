@@ -74,7 +74,13 @@ def gitlab_webhook():
 
         author_name = next((a.get("name") for a in assignees if a.get("id") == author_id), "Auteur inconnu")
         reviewer_names = [r.get('name', '') for r in reviewers]
-        reviewer_list = "\n".join([f"- {name}" for name in reviewer_names]) if reviewer_names else "Aucun reviewer"
+
+        # Ajouter le @ devant chaque nom pour mentionner dans Teams
+        mention_author = f"@{author_name}" if author_name != "Auteur inconnu" else author_name
+        mention_reviewers = [f"@{name}" for name in reviewer_names]
+
+        # Texte affiché dans la notification
+        reviewer_list = "\n".join([f"- {name}" for name in mention_reviewers]) if mention_reviewers else "Aucun reviewer"
 
                 # Déterminer le bon message selon l'action
         if state == "merged":
@@ -82,7 +88,7 @@ def gitlab_webhook():
             action_description = f"✅ La branche a été mergée par **{merge_actor}**"
             reviewer_block = ""  # Ne pas afficher les reviewers dans ce cas
         elif state == "opened":
-            action_description = f"✏️ Merge Request créée par **{author_name}**"
+            action_description = f"✏️ Merge Request créée par **{mention_author}**"
             reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
         elif state == "closed":
             action_description = f"❌ Merge Request fermée par **{action_user}**"
