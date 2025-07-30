@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import re
 from dotenv import load_dotenv
 
 app = Flask(__name__)
@@ -43,80 +44,110 @@ def detect_team(user_name: str):
 def gitlab_webhook():
     data = request.json
 
-    # === 🔔 COMMENTAIRE SUR MR ===
+    # === Gestion des commentaires sur MR ===
     if data.get("object_kind") == "note":
         note_type = data.get("object_attributes", {}).get("noteable_type")
         note_text = data.get("object_attributes", {}).get("note")
         author = data.get("user", {}).get("username", "Utilisateur inconnu")
         mr_title = data.get("merge_request", {}).get("title", "Titre inconnu")
         mr_url = data.get("merge_request", {}).get("url", "#")
+        assignees = data.get("merge_request", {}).get("assignees", [])
+        assigned_name = assignees[0].get("name", "Aucun") if assignees else "Aucun"
 
-        if note_type == "MergeRequest":
-            message = {
-                "text": f"💬 **Nouveau commentaire sur la MR _{mr_title}_**\n"
-                        f"✏️ Auteur : **{author}**\n"
-                        f"📝 Message :\n> {note_text}\n"
-                        f"🔗 [Voir la MR]({mr_url})"
-            }
+        # 🔍 Extraction des images dans le commentaire
+        image_urls = re.findall(r'!\[.*?\]\((http.*?)\)', note_text)
+        image_block = ""
+        if image_urls:
+            image_block = "\n📷 **Images jointes :**\n" + "\n".join(image_urls)
 
-            # Pour l’instant, notification aux Lions par défaut
-            webhook_url = get_webhook_url("Lions")
-            requests.post(webhook_url, json=message)
+        message = {
+            "text": f"💬 **Nouveau commentaire sur la MR _{mr_title}_**\n"
+                    f"✏️ Auteur : **{author}**\n"
+                    f"👤 Destinataire : **{assigned_name}**\n"
+                    f"📝 Message :\n> {note_text}\n"
+                    f"{image_block}\n"
+                    f"🔗 [Voir la MR]({mr_url})"
+        }
 
-            return jsonify({"message": "Notification commentaire envoyée ✅"}), 200
+        # Envoi uniquement dans le canal de l'assigné principal
+        assigned_team = detect_team(assigned_name)
+        if assigned_team:
+            webhook_url = get_webhook_url(assigned_team)
+            if webhook_url:
+                requests.post(webhook_url, json=message)
 
-    # === ✅ EVENEMENT DE MERGE REQUEST ===
+        return jsonify({"message": "Notification commentaire envoyée ✅"}), 200
+
+    # === Gestion des Merge Requests ===
     if data.get("object_kind") == "merge_request":
+        action = data.get("object_attributes", {}).get("action", "")
         project_name = data.get("project", {}).get("name", "Projet inconnu")
         title = data.get("object_attributes", {}).get("title", "Titre inconnu")
-        state = data.get("object_attributes", {}).get("state", "")
-        url = data.get("object_attributes", {}).get("url", "")
-        action_user = data.get("user", {}).get("username", "Utilisateur inconnu")
-        reviewers = data.get("reviewers", [])
-        assignees = data.get("assignees", [])
+        url = data.get("object_attributes", {}).get("url", "#")
         author_id = data.get("object_attributes", {}).get("author_id", None)
+        description = data.get("object_attributes", {}).get("description", "")
+        assignees = data.get("assignees", [])
+        reviewers = data.get("reviewers", [])
+        action_user = data.get("user", {}).get("username", "Utilisateur inconnu")
 
         author_name = next((a.get("name") for a in assignees if a.get("id") == author_id), "Auteur inconnu")
         reviewer_names = [r.get('name', '') for r in reviewers]
+        reviewer_list = "\n".join([f"- {r}" for r in reviewer_names]) if reviewer_names else "Aucun reviewer"
 
-        # Mentions (pour Teams, décoratifs sauf si mentions activées)
-        mention_author = f"@{author_name}" if author_name != "Auteur inconnu" else author_name
-        mention_reviewers = [f"@{name}" for name in reviewer_names]
-        reviewer_list = "\n".join([f"- {name}" for name in mention_reviewers]) if mention_reviewers else "Aucun reviewer"
+        mentioned_usernames = [word[1:] for word in description.split() if word.startswith("@")]
+        mention_block = ""
+        if mentioned_usernames:
+            mention_block = "\n**Approuveurs désignés :**\n" + "\n".join([f"- @{u}" for u in mentioned_usernames])
 
-        # === Description de l’action ===
-        if state == "merged":
+        if action == "open":
+            message_text = (
+                f"✏️ Nouvelle Merge Request dans **{project_name}**\n"
+                f"📄 Titre : _{title}_\n"
+                f"👤 Auteur : **{author_name}**\n"
+                f"👀 Reviewers :\n{reviewer_list}"
+                f"{mention_block}\n"
+                f"🔗 [Voir la MR]({url})"
+            )
+        elif action == "reopen":
+            message_text = (
+                f"🔁 Merge Request _{title}_ **rouverte** dans **{project_name}** par **{action_user}**\n"
+                f"🔗 [Voir la MR]({url})"
+            )
+        elif action == "close":
+            message_text = (
+                f"❌ Merge Request _{title}_ **fermée** par **{action_user}**\n"
+                f"🔗 [Voir la MR]({url})"
+            )
+        elif action == "update":
+            message_text = (
+                f"🔄 Merge Request _{title}_ **mise à jour** par **{action_user}**\n"
+                f"🔗 [Voir la MR]({url})"
+            )
+        elif action == "merge":
             merge_actor = reviewers[0].get("name") if reviewers else action_user
-            action_description = f"✅ La branche a été mergée par **{merge_actor}**"
-            reviewer_block = ""
-        elif state == "opened":
-            action_description = f"✏️ Merge Request créée par **{mention_author}**"
-            reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
-        elif state == "closed":
-            action_description = f"❌ Merge Request fermée par **{action_user}**"
-            reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
+            message_text = (
+                f"✅ Merge Request _{title}_ **mergée** dans **{project_name}** par **{merge_actor}**\n"
+                f"🔗 [Voir la MR]({url})"
+            )
+        elif action == "approved":
+            message_text = (
+                f"👍 **{action_user}** a **approuvé** la Merge Request _{title}_ dans **{project_name}**\n"
+                f"🔗 [Voir la MR]({url})"
+            )
         else:
-            action_description = f"🔄 Action sur la MR par **{action_user}**"
-            reviewer_block = f"\n**Reviewers** :\n{reviewer_list}"
+            message_text = (
+                f"📌 Action `{action}` détectée sur la MR _{title}_ par **{action_user}**\n"
+                f"🔗 [Voir la MR]({url})"
+            )
 
-        # === Message final ===
-        message = {
-            "text": f"🔵 Nouvelle Merge Request sur **{project_name}**\n"
-                    f"📄 : {title}\n\n"
-                    f"{action_description}\n"
-                    f"{reviewer_block}\n\n"
-                    f"🔗 [Voir la MR]({url})"
-        }
+        message = {"text": message_text}
 
-        # === Détection des équipes à notifier ===
-        author_team = detect_team(author_name)
-        reviewer_teams = set(detect_team(name) for name in reviewer_names if detect_team(name))
+        # === Notification à l'équipe de l'auteur uniquement (plus de fallback "Lions") ===
         teams_to_notify = set()
+        author_team = detect_team(author_name)
         if author_team:
             teams_to_notify.add(author_team)
-        teams_to_notify.update(reviewer_teams)
 
-        # === Envoi du message dans chaque canal concerné
         for team in teams_to_notify:
             webhook_url = get_webhook_url(team)
             if webhook_url:
